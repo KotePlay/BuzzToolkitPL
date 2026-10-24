@@ -19,9 +19,13 @@ copy** during setup.
 ## What you need
 
 * A Windows 10 or 11 PC
-* **RPCS3** with Buzz! Quiz World (BCES00645) set up in it. The game's **update 01.02** is
-  needed too; the app checks for it and can download it from Sony for you (step 5).
-* About 1 GB of free disk space (about 8 GB more for the optional host voice)
+* **RPCS3** with Buzz! Quiz World set up in it: `BCES00645` (En, Es, Pt), `BCES00644` (En, Fr,
+  De, It, Nl) or `BCES00647` (Pl, Ru, El, Hr, Cs). On `BCES00645` the game's **update 01.02** is
+  needed for custom running orders; the app checks for it and can download it from Sony for you
+  (step 5). The other discs work as they are (version 1.00): packs, the host voice and the
+  online menus need no update, and the app never installs one unless you press its buttons.
+* About 1 GB of free disk space (about 8 GB more for the optional host voice; about 13 GB more
+  to train a voice in a language other than English)
 * For the host voice (optional): an NVIDIA graphics card. Without one, packs still build, just
   without the host reading the questions.
 
