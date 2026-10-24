@@ -67,7 +67,7 @@ def export(work, name):
     lang = base.get_lang(work)
     json.dump({"lang": lang["lang"], "iso": lang["iso"], "base": lang["base"],
                "reference_clips": [(it["id"], it["raw_text"]) for it in picks], "work": work},
-              open(os.path.join(out, "info.json"), "w", encoding="utf-8"), indent=1, ensure_ascii=False)
+              open(os.path.join(out, "info.json"), "w"), indent=1)     # ASCII-escaped: any reader can open it
     print("exported", out)
     return out
 

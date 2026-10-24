@@ -161,7 +161,7 @@ def state():
     k = keys.load()
     from buzz_engine import __version__
     import buzz_tools
-    return {"ffmpeg": buzz_tools.find_ffmpeg(), "version": __version__, "keys_ready": bool(k.get("klic") and k.get("svomac_salt")), "projects": projects, "languages": langs, "voices": vs, "categories": content.CATEGORIES,
+    return {"ffmpeg": buzz_tools.find_ffmpeg(), "version": __version__, "keys_ready": bool(k.get("klic")), "projects": projects, "languages": langs, "voices": vs, "categories": content.CATEGORIES,
             "round_types": [{"type": k, "name": v["name"], "uses": v["uses"]} for k, v in rounds.selectable().items()],
             "presets": {k: lineup_text(v) for k, v in PRESETS.items()}, "rpcs3": settings().get("rpcs3", ""),
             "hook": hook_installed(), "free_number": free_number(),

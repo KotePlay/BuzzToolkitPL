@@ -35,6 +35,8 @@ SAY = [
     ("century, locative", "Kto żył w XIX wieku?", "Kto żył w dziewiętnastym wieku?"),
     ("century, abbreviation", "Malarz z XVII w.", "Malarz z siedemnastego wieku"),
     ("two centuries", "Na przełomie XIX i XX wieku", "Na przełomie dziewiętnastego i dwudziestego wieku"),
+    ("century pair, slash", "Żył na przełomie XV/XVI w.", "Żył na przełomie piętnastego - szesnastego wieku"),
+    ("century pair, dash", "Gotyk to XII-XV wiek", "Gotyk to dwunasty - piętnasty wiek"),
     ("not a century", "Formularz o płci i wieku", "Formularz o płci i wieku"),
     ("decade", "Hit z lat 80.", "Hit z lat osiemdziesiątych"),
     ("decade, locative", "W latach 90. grał", "W latach dziewięćdziesiątych grał"),

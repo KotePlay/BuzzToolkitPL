@@ -84,9 +84,10 @@ def setup_from_eboot(path):
         if hashlib.sha1(d[off:off + 16]).hexdigest() == want:
             found["klic"] = d[off:off + 16].hex()
             break
-    missing = [k for k in HASHES if k not in found]
-    if missing:
-        raise ValueError("not found in that EBOOT: %s - is it Buzz! Quiz World (BCES00645) v01.02?" % ", ".join(missing))
+    # klic is what packs need; the salt only matters to the online server, so a build that
+    # lacks it can still make packs
+    if "klic" not in found:
+        raise ValueError("not found in that EBOOT: klic - is it Buzz! Quiz World (BCES00644/645/647)?")
     keys = load()
     keys.update(found)
     with open(KEYS_FILE, "w") as f:

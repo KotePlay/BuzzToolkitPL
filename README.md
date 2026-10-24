@@ -161,6 +161,11 @@ Command Prompt opened in the toolkit folder (type `cmd` in the folder's address 
   language. Polish lines also get numbers, dates, years, centuries and units read out in words
   with the right grammatical form ("w 1966 roku", "3 maja", "XIX wieku", "5 km").
 
+**Polish disc (BCES00647).** Read the game keys from that disc's own decrypted EBOOT. The
+*Game update 01.02* label and *Turn on custom running orders* are for `BCES00645` only: ignore
+the first, and skip the second (Polish packs then play the game's own running order in *Pack
+Game*). Packs, the host voice and the online menus work on the Polish disc.
+
 Times measured on an RTX 3060 (12 GB). Faster cards are quicker; CPU-only training is not practical.
 
 Every generated line is checked with speech recognition and re-made if words are wrong.

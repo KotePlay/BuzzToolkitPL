@@ -194,15 +194,16 @@ def say_numbers(text):
 
     # centuries: "w XX wieku", "XIX w.", "na przełomie XIX i XX wieku"
     def century(m):
-        prep, r1, r2, word = m.group(1), m.group(2), m.group(3), m.group(4).lower()
+        prep, r1, joint, r2, word = m.group(1), m.group(2), m.group(3), m.group(4), m.group(5).lower()
         vals = [roman(r) for r in (r1, r2) if r]
         if None in vals or not all(1 <= v <= 30 for v in vals) or (vals[0] == 1 and not prep and not r2):
             return m.group(0)                  # "i wieku" is "and age", not "1st century"
         case = "nom" if word == "wiek" else ("loc" if prep else "gen")
-        said = " i ".join(ordinal(v, case) for v in vals) + (" wiek" if word == "wiek" else " wieku")
+        sep = " i " if joint and joint.strip().lower() == "i" else " - "     # "XV-XVI w." with a pause
+        said = sep.join(ordinal(v, case) for v in vals) + (" wiek" if word == "wiek" else " wieku")
         return (prep + " " if prep else "") + said
-    s = re.sub(_W + r"(?:(w|we)\s+)?([ivxlcdm]+)(?:\s+i\s+([ivxlcdm]+))?\s+(wieku|wiek|w\.)" + r"(?![^\W\d_])",
-               century, s, flags=I)
+    s = re.sub(_W + r"(?:(w|we)\s+)?([ivxlcdm]+)(?:(\s+i\s+|\s*[-–/]\s*)([ivxlcdm]+))?\s+(wieku|wiek|w\.)"
+               + r"(?![^\W\d_])", century, s, flags=I)
 
     # ranges "1939-1945": read with a pause
     s = re.sub(r"(\d)\s*[-–]\s*(\d)", r"\1 - \2", s)
