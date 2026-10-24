@@ -16,7 +16,10 @@ Presets (measured on an RTX 3060, English host, 24 held-out questions):
   best      s3gen 4000 + t3 1000 steps, ~1 h 40 min    speaker similarity 0.959, word errors 14.9%
   (untrained base model: 0.886 / 13.9%.) Fewer than 500 t3 steps adds mispronunciations.
 
-Steps (each resumable; finished steps are skipped):
+Older or smaller cards (GTX 10xx/RTX 20xx, or under 12 GB) train in fp32 and/or in micro-batches
+(voice_trainer.base.train_setup): same result, several times slower.
+
+Steps (each resumable; finished steps are skipped, an interrupted one starts over):
   1 corpus    decode every host line (disc questions + commentary + DLC) with its text
   2 features  S3 tokens / mels / speaker embeddings (GPU), speaker filter vs the question readings
   3 s3gen     fine-tune the voice (timbre)            -> <work>/models/s3gen_flow.pt

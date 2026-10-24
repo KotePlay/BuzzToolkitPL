@@ -66,3 +66,33 @@ def text_tokens(model, text, iso):
     if iso in ENGLISH:
         return model.tokenizer.text_to_tokens(text)
     return model.tokenizer.text_to_tokens(text, language_id=iso)
+
+
+def train_setup(max_frames):
+    """How to train on this card -> (autocast dtype or None for fp32, speech tokens per
+    micro-batch, micro-batches per optimiser step).
+
+    The presets were sized for a 12 GB RTX 3060 in bfloat16. Cards before RTX 30xx have no fast
+    bfloat16 (GTX 10xx emulates it, very slowly), so they train in fp32, which needs about twice
+    the memory; cards with less memory split each batch into micro-batches whose gradients are
+    added up before the step. The optimiser sees the same batch either way - only slower."""
+    import torch
+    props = torch.cuda.get_device_properties(0)
+    dtype = torch.bfloat16 if props.major >= 8 else None
+    budget = props.total_memory / 2 ** 30 / 12 * (1.0 if dtype else 0.5)
+    accum = 1
+    while budget * accum < 0.99 and accum < 8:
+        accum *= 2
+    return dtype, max(1, max_frames // accum), accum
+
+
+def autocast(dtype):
+    import contextlib
+    import torch
+    return torch.autocast("cuda", dtype=dtype) if dtype else contextlib.nullcontext()
+
+
+def describe(dtype, micro, accum):
+    import torch
+    return "%s, %s: %d speech tokens x %d micro-batch%s per step" % (
+        torch.cuda.get_device_name(0), "bf16" if dtype else "fp32", micro, accum, "" if accum == 1 else "es")

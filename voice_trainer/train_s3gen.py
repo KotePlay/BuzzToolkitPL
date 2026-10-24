@@ -7,7 +7,8 @@ Trains the flow encoder + CFM decoder with the model's own flow-matching loss
 (CausalMaskedDiffWithXvec.compute_loss: random 0-30% mel prompt, 20% condition dropout for CFG).
 The HiFi-GAN vocoder stays frozen. Saves <work>/models/s3gen_flow.pt (+ periodic step copies).
 Starts from the S3Gen of the work folder's base model (English, or multilingual for other
-languages - voice_trainer.base), the one the voice will be spoken with.
+languages - voice_trainer.base), the one the voice will be spoken with. Precision and batch
+split follow the card (voice_trainer.base.train_setup).
 """
 import argparse
 import math
@@ -59,13 +60,16 @@ def main(a):
     lr_s = torch.optim.lr_scheduler.LambdaLR(opt, sched)
     out = a.out or os.path.join(a.work, "models")
     os.makedirs(out, exist_ok=True)
-    val_batches = batches(val, a.max_frames, shuffle=False)
+    final, partial = os.path.join(out, "s3gen_flow.pt"), os.path.join(out, "s3gen_flow.partial.pt")
+    dtype, micro, accum = base.train_setup(a.max_frames)
+    print(base.describe(dtype, micro, accum), flush=True)
+    val_batches = batches(val, micro, shuffle=False)
 
     def validate():
         flow.eval()
         torch.manual_seed(0)
         tot, n = 0.0, 0
-        with torch.no_grad(), torch.autocast("cuda", dtype=torch.bfloat16):
+        with torch.no_grad(), base.autocast(dtype):
             for b in val_batches:
                 tot += flow.compute_loss(collate(b), "cuda")["loss"].item()
                 n += 1
@@ -75,17 +79,24 @@ def main(a):
     best = validate()
     print("val loss before: %.4f" % best, flush=True)
     step, epoch, t0, run = 0, 0, time.time(), 0.0
+    n_micro, acc = 0, 0.0
+    opt.zero_grad(set_to_none=True)
     while step < a.steps:
-        for b in batches(train, a.max_frames, seed=epoch):
-            with torch.autocast("cuda", dtype=torch.bfloat16):
+        for b in batches(train, micro, seed=epoch):
+            with base.autocast(dtype):
                 loss = flow.compute_loss(collate(b), "cuda")["loss"]
-            opt.zero_grad(set_to_none=True)
-            loss.backward()
+            (loss / accum).backward()
+            acc += loss.item() / accum
+            n_micro += 1
+            if n_micro % accum:
+                continue
             torch.nn.utils.clip_grad_norm_(params, 1.0)
             opt.step()
+            opt.zero_grad(set_to_none=True)
             lr_s.step()
             step += 1
-            run = 0.98 * run + 0.02 * loss.item() if step > 1 else loss.item()
+            run = 0.98 * run + 0.02 * acc if step > 1 else acc
+            acc = 0.0
             if step % 50 == 0:
                 print("step %d  loss %.4f  lr %.2e  %.1f steps/s" % (step, run, lr_s.get_last_lr()[0], step / (time.time() - t0)), flush=True)
             if step % a.eval_every == 0 or step == a.steps:
@@ -93,10 +104,15 @@ def main(a):
                 print("step %d  val loss %.4f%s" % (step, v, "  (best, saved)" if v < best else ""), flush=True)
                 if v < best:
                     best = v
-                    torch.save(flow.state_dict(), os.path.join(out, "s3gen_flow.pt"))
+                    torch.save(flow.state_dict(), partial)
             if step >= a.steps:
                 break
         epoch += 1
+    # the final name only once training is complete, so an interrupted run is redone, not skipped
+    if os.path.exists(partial):
+        os.replace(partial, final)
+    else:
+        torch.save(flow.state_dict(), final)
     print("done", flush=True)
 
 

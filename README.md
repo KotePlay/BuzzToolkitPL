@@ -167,6 +167,12 @@ the first, and skip the second (Polish packs then play the game's own running or
 Game*). Packs, the host voice and the online menus work on the Polish disc.
 
 Times measured on an RTX 3060 (12 GB). Faster cards are quicker; CPU-only training is not practical.
+The trainer adapts to the card: cards before the RTX 30 series (GTX 10xx, RTX 20xx) train in fp32
+and cards with less than 12 GB split each batch into smaller pieces, so the result is the same
+but training takes several times longer (leave it running overnight). Close games, browsers and
+other GPU-heavy programs while it runs, and run it in its own PowerShell window rather than an
+editor's terminal. If it is interrupted, run the same command again: finished steps are skipped
+and an unfinished one starts over.
 
 Every generated line is checked with speech recognition and re-made if words are wrong.
 
