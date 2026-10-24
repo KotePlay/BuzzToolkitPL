@@ -152,6 +152,14 @@ Command Prompt opened in the toolkit folder (type `cmd` in the folder's address 
   `tools\clone_venv\Scripts\python -m voice_trainer.run --disc "<extracted game folder>" --work <scratch folder> --name buzz_host`
   Add `--preset best` for a longer run (about 1 h 40 min); in our tests it sounded no better than
   the default.
+* **Trained, other languages:** add `--lang` with the pack language and give the disc that has
+  it, for example the Polish host from `BCES00647`:
+  `tools\clone_venv\Scripts\python -m voice_trainer.run --disc "<extracted game folder>" --work <scratch folder for Polish> --lang POL`
+  It learns from that language's own question pack and commentary (`PACK0100\POLPACK0100.PAK`,
+  `GAME\POL.PAK`) on top of the multilingual voice model, and saves the voice as
+  `voice_models\buzz_host_POL`, which Polish packs then use. Use a separate `--work` folder per
+  language. Polish lines also get numbers, dates, years, centuries and units read out in words
+  with the right grammatical form ("w 1966 roku", "3 maja", "XIX wieku", "5 km").
 
 Times measured on an RTX 3060 (12 GB). Faster cards are quicker; CPU-only training is not practical.
 
@@ -201,8 +209,9 @@ matches against remote players are not supported yet (see the roadmap).
   *File → Install Packages/Raps/Edats* and *Copy straight into RPCS3*).
 * **Online:** live online matches against remote players are not supported (MyBuzz quizzes,
   leaderboards and buddies are).
-* **Host voice in languages other than English** is cloned from a short sample (no training
-  yet), so it is less close to the real host than the English trained voice.
+* **Host voice in languages other than English** is cloned from a short sample unless you train
+  it with `voice_trainer.run --lang` (see Host voice). Training for other languages is new and
+  has not been measured against the real host the way the English voice has.
 
 ## Licence
 

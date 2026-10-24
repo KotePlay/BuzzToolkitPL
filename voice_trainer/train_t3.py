@@ -8,7 +8,9 @@ Each sample is laid out exactly as at inference: [conditioning | SOT text EOT | 
 compares logits to unshifted targets, so it is not used). Conditioning = voice-encoder embedding
 of the clip + a 150-token speech prompt cut from OTHER host clips (as the reference clip is at
 inference) + emotion 0.5. 10% of samples drop the text (keeps the classifier-free-guidance path).
-LoRA (peft) on the Llama attention + MLP; saves <work>/models/t3_lora/.
+LoRA (peft) on the Llama attention + MLP; saves <work>/models/t3_lora/. The T3 is the work
+folder's base model's (multilingual for languages other than English - voice_trainer.base); its
+text tokens, language tag included, were made by features.py with the same model.
 """
 import argparse
 import math
@@ -22,9 +24,9 @@ import torch.nn.functional as F
 
 HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, HERE)
-from chatterbox.tts import ChatterboxTTS  # noqa: E402
 from chatterbox.models.t3.modules.cond_enc import T3Cond  # noqa: E402
 from peft import LoraConfig, get_peft_model  # noqa: E402
+from voice_trainer import base  # noqa: E402
 from voice_trainer.data import batches, load_items  # noqa: E402
 
 PLEN = 150
@@ -76,7 +78,7 @@ def main(a):
     pool, _ = load_items(a.work)                          # any host clip can serve as the prompt
     print("train %d clips (%.1f h), val %d" % (len(train), sum(i["dur"] for i in train) / 3600, len(val)), flush=True)
     dev = "cuda"
-    model = ChatterboxTTS.from_pretrained(device=dev)
+    model = base.load(base.get_lang(a.work)["iso"], dev)
     t3 = model.t3
     del model.s3gen
     torch.cuda.empty_cache()

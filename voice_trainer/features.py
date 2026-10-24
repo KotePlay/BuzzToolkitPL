@@ -7,7 +7,9 @@ Per clip (exactly what Chatterbox computes for a reference at inference time):
   mel      S3Gen 80-bin mel at 24 kHz (50 Hz frames, = 2 x tokens; audio padded to 40 ms)
   xvec     CAMPPlus speaker x-vector (s3gen.speaker_encoder, 16 kHz) - S3Gen conditioning
   ve       voice-encoder speaker embedding (256) - T3 conditioning
-  text     T3 text tokens of the normalised transcript (question clips / exact text only)
+  text     T3 text tokens of the normalised transcript (question clips / exact text only),
+           normalised exactly as the pack builder normalises a line before speaking it
+The base model is the one for the work folder's language (voice_trainer.base).
 Written to <work>/features/shard_NNN.pt (lists of dicts, 500 clips per shard) + speakers.json
 (cosine similarity of each clip's x-vector to the host centroid, used to drop other voices).
 """
@@ -25,22 +27,21 @@ import torch
 HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, HERE)
 
-from chatterbox.tts import ChatterboxTTS, punc_norm  # noqa: E402
+from chatterbox.tts import punc_norm  # noqa: E402
+import buzz_voice  # noqa: E402
+from voice_trainer import base  # noqa: E402
 
 SHARD = 500
 
 
-def norm_text(t):
-    """Same normalisation as buzz_voice.host_line (ALL CAPS -> sentence case) + Chatterbox's."""
-    t = t.strip()
-    if t.isupper():
-        t = t.lower()
-        t = t[:1].upper() + t[1:]
-    return punc_norm(t)
+def norm_text(t, iso="en"):
+    """Same normalisation as the pack builder (buzz_voice.host_line: ALL CAPS -> sentence case,
+    Polish numbers in words) + Chatterbox's."""
+    return punc_norm(buzz_voice.host_line(t, lang=iso))
 
 
 @torch.inference_mode()
-def extract(model, wav24, text):
+def extract(model, wav24, text, iso="en"):
     dev = model.device
     n = len(wav24) // 960 * 960                       # 40 ms multiple -> mel = 2 x tokens exactly
     wav24 = wav24[:n]
@@ -58,7 +59,7 @@ def extract(model, wav24, text):
     item = {"tokens": tok.short().cpu(), "mel": mel.half().cpu(), "xvec": xvec.float().cpu(),
             "ve": torch.from_numpy(np.asarray(ve)).float()}
     if text:
-        item["text"] = model.tokenizer.text_to_tokens(norm_text(text))[0].short().cpu()
+        item["text"] = base.text_tokens(model, norm_text(text, iso), iso)[0].short().cpu()
     return item
 
 
@@ -72,12 +73,14 @@ def main(work):
         done |= {it["id"] for it in torch.load(f)}
     todo = [m for m in man if m["id"] not in done]
     print("clips %d, already done %d, to do %d" % (len(man), len(done), len(todo)), flush=True)
-    model = ChatterboxTTS.from_pretrained(device="cuda")
+    lang = base.get_lang(work)
+    print("base model: %s (%s)" % (lang["base"], lang["lang"]), flush=True)
+    model = base.load(lang["iso"])
     shard_no = len(glob.glob(os.path.join(out_dir, "shard_*.pt")))
     buf = []
     for i, m in enumerate(todo):
         wav, sr = sf.read(os.path.join(work, "audio", m["id"] + ".flac"), dtype="float32")
-        item = extract(model, wav, m["text"] if m.get("text_exact") else None)
+        item = extract(model, wav, m["text"] if m.get("text_exact") else None, lang["iso"])
         item.update(id=m["id"], kind=m["kind"], dur=m["dur"], raw_text=m.get("text"))
         buf.append(item)
         if len(buf) == SHARD or i == len(todo) - 1:

@@ -6,6 +6,8 @@ the host's voice. This is what makes it SOUND like him (timbre, warmth, recordin
 Trains the flow encoder + CFM decoder with the model's own flow-matching loss
 (CausalMaskedDiffWithXvec.compute_loss: random 0-30% mel prompt, 20% condition dropout for CFG).
 The HiFi-GAN vocoder stays frozen. Saves <work>/models/s3gen_flow.pt (+ periodic step copies).
+Starts from the S3Gen of the work folder's base model (English, or multilingual for other
+languages - voice_trainer.base), the one the voice will be spoken with.
 """
 import argparse
 import math
@@ -17,7 +19,7 @@ import torch
 
 HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, HERE)
-from chatterbox.tts import ChatterboxTTS  # noqa: E402
+from voice_trainer import base  # noqa: E402
 from voice_trainer.data import batches, load_items  # noqa: E402
 
 
@@ -45,7 +47,7 @@ def collate(items, max_tokens=300):
 def main(a):
     train, val = load_items(a.work)
     print("train %d clips (%.1f h), val %d" % (len(train), sum(i["dur"] for i in train) / 3600, len(val)), flush=True)
-    model = ChatterboxTTS.from_pretrained(device="cuda")
+    model = base.load(base.get_lang(a.work)["iso"])
     flow = model.s3gen.flow
     del model.t3
     torch.cuda.empty_cache()
