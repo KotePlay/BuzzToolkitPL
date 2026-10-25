@@ -8,12 +8,17 @@ Each sample is laid out exactly as at inference: [conditioning | SOT text EOT | 
 compares logits to unshifted targets, so it is not used). Conditioning = voice-encoder embedding
 of the clip + a 150-token speech prompt cut from OTHER host clips (as the reference clip is at
 inference) + emotion 0.5. 10% of samples drop the text (keeps the classifier-free-guidance path).
-LoRA (peft) on the Llama attention + MLP; saves <work>/models/t3_lora/.
+LoRA (peft) on the Llama attention + MLP; saves <work>/models/t3_lora/. The T3 is the work
+folder's base model's (multilingual for languages other than English - voice_trainer.base); its
+text tokens, language tag included, were made by features.py with the same model. Precision and
+batch split follow the card (voice_trainer.base.train_setup).
 """
 import argparse
+import glob
 import math
 import os
 import random
+import shutil
 import sys
 import time
 
@@ -22,9 +27,9 @@ import torch.nn.functional as F
 
 HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, HERE)
-from chatterbox.tts import ChatterboxTTS  # noqa: E402
 from chatterbox.models.t3.modules.cond_enc import T3Cond  # noqa: E402
 from peft import LoraConfig, get_peft_model  # noqa: E402
+from voice_trainer import base  # noqa: E402
 from voice_trainer.data import batches, load_items  # noqa: E402
 
 PLEN = 150
@@ -76,7 +81,7 @@ def main(a):
     pool, _ = load_items(a.work)                          # any host clip can serve as the prompt
     print("train %d clips (%.1f h), val %d" % (len(train), sum(i["dur"] for i in train) / 3600, len(val)), flush=True)
     dev = "cuda"
-    model = ChatterboxTTS.from_pretrained(device=dev)
+    model = base.load(base.get_lang(a.work)["iso"], dev)
     t3 = model.t3
     del model.s3gen
     torch.cuda.empty_cache()
@@ -92,14 +97,17 @@ def main(a):
     sched = lambda s: min(1.0, s / 100) * (0.1 + 0.9 * 0.5 * (1 + math.cos(math.pi * min(s, a.steps) / a.steps)))
     lr_s = torch.optim.lr_scheduler.LambdaLR(opt, sched)
     out = a.out or os.path.join(a.work, "models", "t3_lora")
-    os.makedirs(out, exist_ok=True)
-    val_b = batches(val, a.max_frames, shuffle=False)
+    partial = out + ".partial"
+    os.makedirs(partial, exist_ok=True)
+    dtype, micro, accum = base.train_setup(a.max_frames)
+    print(base.describe(dtype, micro, accum), flush=True)
+    val_b = batches(val, micro, shuffle=False)
 
     def validate():
         t3.eval()
         rng = random.Random(0)
         tot = 0.0
-        with torch.no_grad(), torch.autocast("cuda", dtype=torch.bfloat16):
+        with torch.no_grad(), base.autocast(dtype):
             for b in val_b:
                 tot += step_loss(t3, b, pool, rng, dev, drop_text=0).item()
         t3.train()
@@ -109,17 +117,24 @@ def main(a):
     print("val loss before: %.4f" % best, flush=True)
     rng = random.Random(1)
     step, epoch, t0, run = 0, 0, time.time(), 0.0
+    n_micro, acc = 0, 0.0
+    opt.zero_grad(set_to_none=True)
     while step < a.steps:
-        for b in batches(train, a.max_frames, seed=epoch):
-            with torch.autocast("cuda", dtype=torch.bfloat16):
+        for b in batches(train, micro, seed=epoch):
+            with base.autocast(dtype):
                 loss = step_loss(t3, b, pool, rng, dev)
-            opt.zero_grad(set_to_none=True)
-            loss.backward()
+            (loss / accum).backward()
+            acc += loss.item() / accum
+            n_micro += 1
+            if n_micro % accum:
+                continue
             torch.nn.utils.clip_grad_norm_(params, 1.0)
             opt.step()
+            opt.zero_grad(set_to_none=True)
             lr_s.step()
             step += 1
-            run = 0.98 * run + 0.02 * loss.item() if step > 1 else loss.item()
+            run = 0.98 * run + 0.02 * acc if step > 1 else acc
+            acc = 0.0
             if step % 50 == 0:
                 print("step %d  loss %.4f  lr %.2e  %.2f steps/s" % (step, run, lr_s.get_last_lr()[0], step / (time.time() - t0)), flush=True)
             if step % a.eval_every == 0 or step == a.steps:
@@ -127,10 +142,16 @@ def main(a):
                 print("step %d  val loss %.4f%s" % (step, v, "  (best, saved)" if v < best else ""), flush=True)
                 if v < best:
                     best = v
-                    t3.tfmr.save_pretrained(out)
+                    t3.tfmr.save_pretrained(partial)
             if step >= a.steps:
                 break
         epoch += 1
+    # the final name only once training is complete, so an interrupted run is redone, not skipped
+    if not glob.glob(os.path.join(partial, "adapter_model.*")):
+        t3.tfmr.save_pretrained(partial)
+    if os.path.isdir(out):
+        shutil.rmtree(out)
+    os.replace(partial, out)
     print("done", flush=True)
 
 

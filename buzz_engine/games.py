@@ -35,8 +35,9 @@ GAMES = {
         "dlc_title": "BCES00195",
         "languages": ["RUS", "POL", "GRC", "CRO", "CZE"],
         "disc_languages": ["RUS", "POL", "GRC", "CRO", "CZE"],
-        # the build ships five, but runs Russian regardless of RPCS3's system language
-        "default_language": "RUS",
+        # the build ships five; new packs default to Polish, confirmed playing in RPCS3 with the
+        # game in Polish
+        "default_language": "POL",
     },
 }
 DEFAULT_GAME = "BCES00645"

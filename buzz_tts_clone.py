@@ -7,7 +7,9 @@ CUDA torch):
 jobs.json: [{"text": "...", "out": "clip.wav"}, ...]. Writes 24 kHz mono 16-bit WAVs in the voice
 of the reference clip (~10 s of the host, built by make_host_reference.py from the user's own
 game files). --model loads weights fine-tuned by voice_trainer (s3gen_flow.pt, t3_lora/) on top
-of the base model. Each line uses a fixed seed so runs are repeatable on the same machine.
+of the base model: the English model for English voices, the multilingual one for voices trained
+in another language (info.json "base", written by voice_trainer). Each line uses a fixed seed so
+runs are repeatable on the same machine.
 Setup: tools/clone_requirements.txt; base weights download from Hugging Face (ResembleAI/chatterbox).
 """
 import argparse
@@ -23,17 +25,29 @@ from chatterbox.tts import ChatterboxTTS
 ENGLISH = ("en", "", None)
 
 
+def trained_base(model_dir):
+    """'english' or 'multilingual': the base model a voice_trainer voice was fine-tuned on."""
+    p = os.path.join(model_dir, "info.json")
+    info = json.load(open(p, encoding="utf-8")) if os.path.exists(p) else {}
+    return info.get("base", "english")          # voices from before languages were recorded
+
+
 def load(model_dir=None, device=None, lang=None):
-    """lang: ISO language code of the pack ("en", "es", "pt", ...). Non-English packs use
-    Chatterbox's multilingual model (23 languages)."""
+    """lang: ISO language code of the pack ("en", "es", "pl", ...). Non-English packs use
+    Chatterbox's multilingual model (23 languages). model_dir: fine-tuned weights for that same
+    base model (a voice trained on the English model cannot speak through the multilingual one)."""
     device = device or ("cuda" if torch.cuda.is_available() else "cpu")
-    if lang not in ENGLISH:
+    want = "english" if lang in ENGLISH else "multilingual"
+    if model_dir and trained_base(model_dir) != want:
+        raise ValueError("%s was trained on the %s model, but language %r needs the %s one"
+                         % (model_dir, trained_base(model_dir), lang, want))
+    if want == "multilingual":
         from chatterbox.mtl_tts import ChatterboxMultilingualTTS
         model = ChatterboxMultilingualTTS.from_pretrained(device=torch.device(device))
         model.buzz_lang = lang
-        return model
-    model = ChatterboxTTS.from_pretrained(device=device)
-    model.buzz_lang = None
+    else:
+        model = ChatterboxTTS.from_pretrained(device=device)
+        model.buzz_lang = None
     if model_dir:
         flow = os.path.join(model_dir, "s3gen_flow.pt")
         if os.path.exists(flow):
@@ -69,7 +83,7 @@ if __name__ == "__main__":
     ap.add_argument("--seed", type=int, default=1234)
     ap.add_argument("--lang", default="en", help="ISO language code (en, es, pt, de, fr, it, ...)")
     a = ap.parse_args()
-    model = load(a.model if a.lang in ENGLISH else None, lang=a.lang)
+    model = load(a.model, lang=a.lang)
     model.prepare_conditionals(a.ref, exaggeration=a.exaggeration)
     opts = {"exaggeration": a.exaggeration, "cfg": a.cfg, "temperature": a.temperature, "seed": a.seed}
     for job in json.load(open(a.jobs, encoding="utf-8")):

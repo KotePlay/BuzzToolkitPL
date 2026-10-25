@@ -1,16 +1,23 @@
 """Check generated host lines with speech recognition (openai-whisper, runs in tools/clone_venv).
 
-    tools/clone_venv/Scripts/python.exe buzz_tts_verify.py jobs.json [--model small.en]
+    tools/clone_venv/Scripts/python.exe buzz_tts_verify.py jobs.json [--lang pl] [--model small.en]
 
 jobs.json: [{"text": "...", "wav": "clip.wav", "vocab": optional spelling hints}, ...]. The
 intended sentence itself is NOT given to the recogniser (it would "hear" it regardless). Prints
 one JSON line per job with the transcript and a word error rate against the intended text, so
 buzz_voice can regenerate a take that skipped, repeated or invented words (cloning TTS
-occasionally does). Numbers are compared as words ("4" == "four").
+occasionally does). Numbers are compared as words ("4" == "four"; in Polish "w 1966 roku" ==
+"w tysiąc dziewięćset sześćdziesiątym szóstym roku", see buzz_polish). Other languages compare
+words only, so a number the recogniser writes differently is not counted against the take.
+Model: small.en for English; other languages use medium (small mishears inflected languages like
+Polish often enough to throw away good takes). BUZZ_ASR_MODEL overrides.
 """
 import argparse
 import json
+import os
 import re
+
+import buzz_polish
 
 _ONES = "zero one two three four five six seven eight nine ten eleven twelve thirteen fourteen fifteen sixteen seventeen eighteen nineteen".split()
 _TENS = "_ _ twenty thirty forty fifty sixty seventy eighty ninety".split()
@@ -38,14 +45,18 @@ _SAME = {"colour": "color", "colours": "colors", "coloured": "colored", "favouri
          "organisation": "organization", "realise": "realize", "witch": "which", "whose": "who's"}
 
 
-def words(s):
+def words(s, lang="en"):
+    if lang == "pl":
+        s = buzz_polish.say_numbers(s)
     s = s.lower().replace("-", " ")
-    s = re.sub(r"\d+", lambda m: " " + _num(int(m.group())) + " ", s)
-    return [_SAME.get(w, w) for w in re.findall(r"[a-z\u00c0-\u024f']+", s)]
+    if lang == "en":
+        s = re.sub(r"\d+", lambda m: " " + _num(int(m.group())) + " ", s)
+    same = _SAME if lang == "en" else {}
+    return [same.get(w, w) for w in re.findall(r"[a-z\u00c0-\u024f']+", s)]
 
 
-def wer(ref, hyp):
-    r, h = words(ref), words(hyp)
+def wer(ref, hyp, lang="en"):
+    r, h = words(ref, lang), words(hyp, lang)
     d = list(range(len(h) + 1))
     for i in range(1, len(r) + 1):
         prev, d[0] = d[0], i
@@ -53,6 +64,10 @@ def wer(ref, hyp):
             cur = min(d[j] + 1, d[j - 1] + 1, prev + (r[i - 1] != h[j - 1]))
             prev, d[j] = d[j], cur
     return d[len(h)] / max(len(r), 1)
+
+
+def asr_model(lang, model=None):
+    return model or os.environ.get("BUZZ_ASR_MODEL") or ("small.en" if lang == "en" else "medium")
 
 
 if __name__ == "__main__":
@@ -63,10 +78,10 @@ if __name__ == "__main__":
     ap.add_argument("--model", default=None)
     ap.add_argument("--lang", default="en")
     a = ap.parse_args()
-    model = whisper.load_model(a.model or ("small.en" if a.lang == "en" else "small"))
+    model = whisper.load_model(asr_model(a.lang, a.model))
     for job in json.load(open(a.jobs, encoding="utf-8")):
         audio = librosa.load(job["wav"], sr=16000, mono=True)[0]      # whisper's loader needs ffmpeg on PATH
         hyp = model.transcribe(audio, language=a.lang, fp16=False, temperature=0.0,
                                initial_prompt=job.get("vocab"))["text"].strip()
-        print(json.dumps({"wav": job["wav"], "text": job["text"], "heard": hyp, "wer": round(wer(job["text"], hyp), 3)}),
+        print(json.dumps({"wav": job["wav"], "text": job["text"], "heard": hyp, "wer": round(wer(job["text"], hyp, a.lang), 3)}),
               flush=True)

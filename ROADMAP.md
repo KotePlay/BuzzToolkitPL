@@ -1,5 +1,8 @@
 # Buzz Toolkit roadmap
 
+> The original roadmap of Buzz Toolkit by Handylemons, kept as it is. Item 4 (more languages for
+> the trained voice) is what this fork has done for Polish; see RELEASE_NOTES.md.
+
 ## Done
 
 * Pack generator: questions (files, online sources, hand-written), pictures, Point Stealer picture

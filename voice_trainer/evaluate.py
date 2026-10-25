@@ -6,7 +6,9 @@
 Generates held-out question texts (validation clips the trainer never saw) and scores them with
 an INDEPENDENT speaker-verification model (microsoft/wavlm-base-plus-sv, not part of Chatterbox):
 cosine similarity of each generated line to the real host's clips. Also reports the same score
-for real host clips against each other (the ceiling) and Whisper word error rate.
+for real host clips against each other (the ceiling) and Whisper word error rate. Lines are
+normalised as the pack builder does (buzz_voice.host_line) and spoken and checked in the work
+folder's language.
 Writes <work>/eval/<label>/*.wav for listening and prints a summary line.
 """
 import argparse
@@ -22,6 +24,9 @@ import torch
 HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, HERE)
 import buzz_tts_clone  # noqa: E402
+import buzz_tts_verify  # noqa: E402
+import buzz_voice  # noqa: E402
+from voice_trainer import base  # noqa: E402
 from voice_trainer.data import load_items  # noqa: E402
 
 
@@ -49,22 +54,23 @@ def main(a):
     centroid = centroid / centroid.norm()
     ceiling = np.mean([(r @ centroid).item() for r in real])
 
-    model = buzz_tts_clone.load(a.model)
+    iso = base.get_lang(a.work)["iso"]
+    model = buzz_tts_clone.load(a.model, lang=iso)
     model.prepare_conditionals(a.ref, exaggeration=a.exaggeration)
     opts = {"exaggeration": a.exaggeration, "cfg": a.cfg, "temperature": 0.8, "seed": 1234}
     out = os.path.join(a.work, "eval", a.label)
     os.makedirs(out, exist_ok=True)
     import whisper
-    asr = whisper.load_model("small.en")
-    from buzz_tts_verify import wer  # noqa: E402  (same scoring as the pipeline check)
+    asr = whisper.load_model(buzz_tts_verify.asr_model(iso))     # same model and scoring as the pipeline check
     sims, wers = [], []
     for it in val:
-        x = buzz_tts_clone.generate(model, it["raw_text"], opts)
+        line = buzz_voice.host_line(it["raw_text"], lang=iso)
+        x = buzz_tts_clone.generate(model, line, opts)
         sf.write(os.path.join(out, it["id"] + ".wav"), x, model.sr)
         x16 = librosa.resample(x, orig_sr=model.sr, target_sr=16000)
         sims.append((sc.embed(x16) @ centroid).item())
-        heard = asr.transcribe(x16.astype(np.float32), language="en", fp16=False, temperature=0.0)["text"]
-        wers.append(wer(it["raw_text"], heard))
+        heard = asr.transcribe(x16.astype(np.float32), language=iso, fp16=False, temperature=0.0)["text"]
+        wers.append(buzz_tts_verify.wer(line, heard, iso))
     res = {"label": a.label, "speaker_sim": round(float(np.mean(sims)), 4), "real_ceiling": round(float(ceiling), 4),
            "wer": round(float(np.mean(wers)), 4), "n": len(val)}
     json.dump(res, open(os.path.join(out, "result.json"), "w"), indent=1)

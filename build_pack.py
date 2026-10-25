@@ -72,9 +72,15 @@ DLC_TITLE = "BCES00098"
 # comfortable target for hand-written packs, but imported content gets the full range.
 MAX_Q, MAX_A = 115, 40
 SUBJECT_ID = 115                       # question category item defined by questioncategories.clu
-INTROS = ["HERE'S A QUESTION ON %s. PLACE YOUR BETS!",
-          "THIS ONE'S ON %s. WHAT WILL YOU BET?",
-          "NEXT UP IS A QUESTION ON %s. HOW MUCH ARE YOU PREPARED TO RISK?"]
+# host-intro lines shown before a question (High Stakes), by pack language; English otherwise
+INTROS = {
+    "GBR": ["HERE'S A QUESTION ON %s. PLACE YOUR BETS!",
+            "THIS ONE'S ON %s. WHAT WILL YOU BET?",
+            "NEXT UP IS A QUESTION ON %s. HOW MUCH ARE YOU PREPARED TO RISK?"],
+    "POL": ["OTO PYTANIE Z KATEGORII %s. OBSTAWIAJCIE!",
+            "TO PYTANIE JEST Z KATEGORII %s. ILE STAWIACIE?",
+            "TERAZ PYTANIE Z KATEGORII %s. ILE JESTEŚCIE GOTOWI ZARYZYKOWAĆ?"],
+}
 # round file -> (package number in roundpackages, round type tag) - retail order
 ROUNDS = [("stoptheclock", 1), ("passthebomb", 2), ("piefight", 3), ("highstakes", 4),
           ("pointstealer", 5), ("finalcountdown", 6), ("fastestfinger", 7), ("allthatapply", 8),
@@ -315,12 +321,13 @@ def host_speech(C, speech_ids, questions, skip=()):
     if not cfg or os.environ.get("BUZZ_NO_VOICE"):
         return {}
     say, pron = cfg.get("say", {}), cfg.get("pronounce", {})
+    iso = (cfg.get("clone") or {}).get("lang") or LANGUAGES.get(C.get("language", LANG).upper(), {}).get("whisper")
     lines = {}
     for rnd in cfg.get("rounds", ["point_stealer"]):
         kind = VOICE_KINDS[rnd]
         for b, text in enumerate(questions[kind]):
             if (kind, b) in speech_ids and speech_ids[(kind, b)] not in skip:
-                lines[speech_ids[(kind, b)]] = say.get(text) or buzz_voice.host_line(text, pron)
+                lines[speech_ids[(kind, b)]] = say.get(text) or buzz_voice.host_line(text, pron, iso)
     sids = sorted(lines)
     if not sids:
         return {}
@@ -386,14 +393,15 @@ def build(content_path, overrides=None):
     qid_base = 20000
     content_base = 64000
     bank = []
+    intros = INTROS.get(lang, INTROS["GBR"])
     for k, (kind, b) in enumerate(order):
         if kind == "standard":
             q = std[b]
-            strs = [q[0], INTROS[k % 3] % topic] + q[1:5]
+            strs = [q[0], intros[k % 3] % topic] + q[1:5]
             tags = TEXT_TAGS
         else:
             q = pic[b]
-            strs = [q[1], INTROS[k % 3] % topic] + q[2:6]
+            strs = [q[1], intros[k % 3] % topic] + q[2:6]
             tags = PIC_TAGS
         bank.append({"kind": kind, "item": b, "strings": strs, "speech": speech_for((kind, b)),
                      "answers": [(0, 5), (1, 1), (2, 1), (3, 1)], "tags": tags,

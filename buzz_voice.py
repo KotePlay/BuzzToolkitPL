@@ -46,16 +46,20 @@ LEAD, TAIL = 0.03, 0.15          # seconds of silence kept before/after the line
 _SMALL = {"a", "an", "and", "as", "at", "but", "by", "for", "in", "of", "on", "or", "the", "to", "with"}
 
 
-def host_line(text, pronounce=None):
+def host_line(text, pronounce=None, lang=None):
     """Turn an on-screen question (usually ALL CAPS) into what the host says.
     Lower-casing stops TTS spelling words out as acronyms; `pronounce` maps words to
-    respellings, e.g. {"HERMIONE": "Her-my-oh-nee"}."""
+    respellings, e.g. {"HERMIONE": "Her-my-oh-nee"}. lang: ISO code of the pack's voice; Polish
+    lines get numbers, dates and units in words (buzz_polish)."""
     s = text.strip()
     if s.isupper():
         s = s.lower()
         s = s[:1].upper() + s[1:]
     for word, say in (pronounce or {}).items():
         s = re.sub(r"\b%s\b" % re.escape(word), say, s, flags=re.IGNORECASE)
+    if lang == "pl":
+        import buzz_polish
+        s = buzz_polish.say_numbers(s)
     return s
 
 

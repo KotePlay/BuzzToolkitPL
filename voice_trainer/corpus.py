@@ -1,13 +1,14 @@
 """Step 1 of the host-voice trainer: collect every host line from the user's OWN game files.
 
     python -m voice_trainer.corpus --disc "L:/.../Buzz Quiz World (Europe) (EnEsPt)" \
-        [--pack dlc_test/GBRPACK0017.DAT ...] [--question-pak <path to INEPACK0100.PAK>] --work <dir>
+        [--lang POL] [--pack dlc_test/GBRPACK0017.DAT ...] [--question-pak <path to INEPACK0100.PAK>] --work <dir>
 
-Sources (nothing is bundled with the tool, everything is read from the user's copy):
-  * disc question pack  PS3_GAME/USRDIR/PACK0100/INEPACK0100.PAK
+Sources (nothing is bundled with the tool, everything is read from the user's copy). <L> is the
+disc archive code of the work folder's language: INE for English, POL for Polish, ESP, ...
+  * disc question packs PS3_GAME/USRDIR/PACK*/<L>PACK*.PAK (PACK0100/INEPACK0100.PAK in English)
         QUESTIONASSETS/SPEECH/QUESTIONS/ONDEMAND/<6000000000+speech id>.rsf, text = the role-1
         (question) sentence of that speech id in ROUNDS/*.kaq + .hdr/.hst string tables
-  * disc commentary     PS3_GAME/USRDIR/GAME/INE.PAK
+  * disc commentary     PS3_GAME/USRDIR/GAME/<L>.PAK
         AUDIO/COMMENTARY/{ONDEMAND,PRELOADED}/9xxxxxxxNN.rsf, text = COMMENTARY/comments.dat line
         8xxxxxxx (NN = recorded variant; variants may differ slightly from the script line)
   * decrypted DLC packs (.DAT) - same layout as the question pack
@@ -17,6 +18,7 @@ All clips of one source are decoded in a single ffmpeg pass: frames are concaten
 frames in between, so each clip decodes exactly as it would alone and is cut out afterwards.
 """
 import argparse
+import glob
 import io
 import json
 import os
@@ -34,6 +36,7 @@ sys.path.insert(0, HERE)
 import buzz_index  # noqa: E402
 import buzz_rsf  # noqa: E402
 import buzz_text  # noqa: E402
+from voice_trainer import base  # noqa: E402
 
 OUT_RATE = 24000
 GAP = 4                                   # silent frames between clips in the decode stream
@@ -59,12 +62,27 @@ def question_clips(z):
     return out
 
 
-def commentary_clips(z):
+# 8-bit code page a language's commentary script is most likely written in, if it is not UTF
+CODEPAGES = {"POL": "cp1250", "CZE": "cp1250", "CRO": "cp1250", "RUS": "cp1251", "GRC": "cp1253"}
+
+
+def decode_script(raw, disc="INE"):
+    """comments.dat text: UTF-16/UTF-8 when marked or valid, else the language's code page
+    (latin-1 for Western Europe). The English disc is plain latin-1."""
+    if raw[:2] in (b"\xff\xfe", b"\xfe\xff"):
+        return raw.decode("utf-16")
+    try:
+        return raw.decode("utf-8-sig")
+    except UnicodeDecodeError:
+        return raw.decode(CODEPAGES.get(disc, "latin-1"), errors="replace")
+
+
+def commentary_clips(z, disc="INE"):
     names = z.namelist()
     script = {}
     cd = [n for n in names if n.upper().endswith("COMMENTARY/COMMENTS.DAT")]
     if cd:
-        for cid, _, line in re.findall(r"^(\d{6,}),(\d+),(.*?)\r", z.read(cd[0]).decode("latin-1"), re.M):
+        for cid, _, line in re.findall(r"^(\d{6,}),(\d+),(.*?)\r", decode_script(z.read(cd[0]), disc), re.M):
             script[cid] = line.strip()
     out = []
     for n in names:
@@ -109,7 +127,7 @@ def trim(x, thr=0.01, pad=0.08):
     return x[max(0, loud[0] - p):loud[-1] + p]
 
 
-def build(sources, work):
+def build(sources, work, disc="INE"):
     os.makedirs(os.path.join(work, "audio"), exist_ok=True)
     man_path = os.path.join(work, "manifest.jsonl")
     done = set()
@@ -119,7 +137,7 @@ def build(sources, work):
     total = 0
     for path, kind in sources:
         z = zipfile.ZipFile(path)
-        clips = question_clips(z) if kind == "question" else commentary_clips(z)
+        clips = question_clips(z) if kind == "question" else commentary_clips(z, disc)
         clips = [c for c in clips if c[0] not in done]
         print("%s: %d %s clips" % (os.path.basename(path), len(clips), kind), flush=True)
         for i in range(0, len(clips), 400):
@@ -145,16 +163,24 @@ def build(sources, work):
     return total
 
 
-def find_sources(disc, packs, question_pak=None):
+def find_sources(disc, packs, question_pak=None, code="INE"):
+    """code: disc archive code of the language (INE, POL, ESP, ...)."""
     u = os.path.join(disc, "PS3_GAME", "USRDIR")
     src = []
-    qp = question_pak or os.path.join(u, "PACK0100", "INEPACK0100.PAK")
-    if os.path.exists(qp):
-        src.append((qp, "question"))
-    cp = os.path.join(u, "GAME", "INE.PAK")
+    qps = [question_pak] if question_pak else sorted(glob.glob(os.path.join(u, "PACK*", code + "PACK*.PAK")))
+    src += [(qp, "question") for qp in qps if os.path.exists(qp)]
+    cp = os.path.join(u, "GAME", code + ".PAK")
     if os.path.exists(cp):
         src.append((cp, "commentary"))
     src += [(p, "question") for p in packs]
+    if not any(kind == "question" for _, kind in src):
+        # the host's question readings are what the voice is centred on - without them the
+        # speaker filter has nothing to go by, so stop here and show what the disc does have
+        found = sorted(os.path.relpath(p, u) for p in glob.glob(os.path.join(u, "*", "*.PAK"))
+                       + glob.glob(os.path.join(u, "*.PAK")))
+        raise SystemExit("no %s question pack (PACK*/%sPACK*.PAK) under %s.\nPAK files there: %s\n"
+                         "Pass --question-pak, or --pack with a decrypted %s DLC pack."
+                         % (code, code, u, ", ".join(found) or "none", code))
     return src
 
 
@@ -164,8 +190,10 @@ if __name__ == "__main__":
     ap.add_argument("--pack", action="append", default=[], help="decrypted DLC pack (.DAT), repeatable")
     ap.add_argument("--question-pak", default=None, help="override the disc question pack path")
     ap.add_argument("--work", required=True)
+    ap.add_argument("--lang", default=None, help="pack language (GBR, POL, ESP, ...); default: the work folder's, else GBR")
     a = ap.parse_args()
-    srcs = find_sources(a.disc, a.pack, a.question_pak)
+    lang = base.set_lang(a.work, a.lang) if a.lang else base.get_lang(a.work)
+    srcs = find_sources(a.disc, a.pack, a.question_pak, lang["disc"])
     for s in srcs:
         print("source:", s)
-    print("clips written:", build(srcs, a.work))
+    print("clips written:", build(srcs, a.work, lang["disc"]))

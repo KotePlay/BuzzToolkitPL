@@ -2,15 +2,24 @@
 builder uses. Nothing from the game ships with the tool - every user runs this on their copy.
 
     tools/clone_venv/Scripts/python.exe -m voice_trainer.run --disc "<extracted game folder>" \
-        --work "<scratch dir, ~3 GB>" [--pack <decrypted DLC .DAT> ...] [--name buzz_host] \
+        --work "<scratch dir, ~3 GB>" [--lang POL] [--pack <decrypted DLC .DAT> ...] [--name buzz_host] \
         [--preset standard|best]
+
+--lang picks the host to learn (pack code, default GBR): the disc's own question pack and
+commentary in that language, and the base model that speaks it - English for GBR, the
+multilingual model for every other language (POL, ESP, PRT, DEU, ...). One --work folder per
+language. The voice is exported as voice_models/buzz_host (English) or buzz_host_<LANG>, and the
+pack builder picks it for packs in that language.
 
 Presets (measured on an RTX 3060, English host, 24 held-out questions):
   standard  s3gen 1500 + t3 500 steps, ~1 h in total   speaker similarity 0.964, word errors 13.5%
   best      s3gen 4000 + t3 1000 steps, ~1 h 40 min    speaker similarity 0.959, word errors 14.9%
   (untrained base model: 0.886 / 13.9%.) Fewer than 500 t3 steps adds mispronunciations.
 
-Steps (each resumable; finished steps are skipped):
+Older or smaller cards (GTX 10xx/RTX 20xx, or under 12 GB) train in fp32 and/or in micro-batches
+(voice_trainer.base.train_setup): same result, several times slower.
+
+Steps (each resumable; finished steps are skipped, an interrupted one starts over):
   1 corpus    decode every host line (disc questions + commentary + DLC) with its text
   2 features  S3 tokens / mels / speaker embeddings (GPU), speaker filter vs the question readings
   3 s3gen     fine-tune the voice (timbre)            -> <work>/models/s3gen_flow.pt
@@ -42,6 +51,7 @@ def export(work, name):
     import numpy as np
     import soundfile as sf
     sys.path.insert(0, HERE)
+    from voice_trainer import base
     from voice_trainer.data import load_items
     out = os.path.join(HERE, "voice_models", name)
     os.makedirs(out, exist_ok=True)
@@ -57,8 +67,10 @@ def export(work, name):
         x, sr = sf.read(os.path.join(work, "audio", it["id"] + ".flac"), dtype="float32")
         parts += [x, np.zeros(int(0.25 * sr), np.float32)]
     sf.write(os.path.join(out, "reference.wav"), np.concatenate(parts[:-1]), sr)
-    json.dump({"reference_clips": [(it["id"], it["raw_text"]) for it in picks], "work": work},
-              open(os.path.join(out, "info.json"), "w"), indent=1)
+    lang = base.get_lang(work)
+    json.dump({"lang": lang["lang"], "iso": lang["iso"], "base": lang["base"],
+               "reference_clips": [(it["id"], it["raw_text"]) for it in picks], "work": work},
+              open(os.path.join(out, "info.json"), "w"), indent=1)     # ASCII-escaped: any reader can open it
     print("exported", out)
     return out
 
@@ -69,7 +81,8 @@ if __name__ == "__main__":
     ap.add_argument("--work", required=True)
     ap.add_argument("--pack", action="append", default=[])
     ap.add_argument("--question-pak", default=None)
-    ap.add_argument("--name", default="buzz_host")
+    ap.add_argument("--lang", default="GBR", help="host language to learn (pack code: GBR, POL, ESP, ...)")
+    ap.add_argument("--name", default=None, help="voice name (default buzz_host, or buzz_host_<LANG>)")
     ap.add_argument("--preset", choices=sorted(PRESETS), default="standard")
     ap.add_argument("--s3gen-steps", type=int, default=None, help="override the preset")
     ap.add_argument("--t3-steps", type=int, default=None, help="override the preset")
@@ -77,6 +90,11 @@ if __name__ == "__main__":
     a.s3gen_steps = a.s3gen_steps or PRESETS[a.preset][0]
     a.t3_steps = a.t3_steps or PRESETS[a.preset][1]
     w = a.work
+    sys.path.insert(0, HERE)
+    from voice_trainer import base
+    lang = base.set_lang(w, a.lang)
+    a.name = a.name or ("buzz_host" if lang["iso"] == "en" else "buzz_host_" + lang["lang"])
+    print("language %s: %s base model, voice %s" % (lang["lang"], lang["base"], a.name), flush=True)
     if not os.path.exists(os.path.join(w, "manifest.jsonl")):
         args = ["corpus", "--disc", a.disc, "--work", w] + sum([["--pack", p] for p in a.pack], [])
         step("1 corpus", args + (["--question-pak", a.question_pak] if a.question_pak else []))
