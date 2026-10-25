@@ -45,9 +45,10 @@ def generate(project, language=None, audio=True, out_dir=None, progress=print, r
         # a pack whose content was ported from another title brings its own recordings, so say
         # where the audio really comes from rather than naming a voice model that never runs
         ported = C.get("speech_source")
-        # only look for a TTS voice if the pack actually asks for one - a fully ported pack must
-        # not quietly pull in a default voice model it never uses
-        cfg = voices.voice_config(lang, C["voice"]) if C.get("voice") else None
+        # a fully ported pack must not quietly pull in a default voice model it never uses, so it
+        # gets TTS only if it asks for it with a "voice" block; any other pack with audio on uses
+        # this language's voice (Buzz Pack Studio's packs carry only "audio", no "voice" block)
+        cfg = voices.voice_config(lang, C.get("voice")) if (C.get("voice") or not ported) else None
         notes = []
         if ported:
             notes.append("original recordings from %s" % os.path.basename(ported["archive"]))
