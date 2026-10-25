@@ -1,5 +1,9 @@
 # Buzz! Quiz World po polsku – własne paczki pytań z polskim prowadzącym
 
+> Ten projekt to fork **[Handylemons/BuzzToolkit](https://github.com/Handylemons/BuzzToolkit)** –
+> cała baza (generator paczek, szyfrowanie, trener głosu, serwer, Buzz Pack Studio) to praca
+> Handylemons. Ten fork dodaje do niej polską wersję.
+
 Ta instrukcja prowadzi krok po kroku od zera do zagrania we własną paczkę pytań, w której
 **pytania czyta głos polskiego prowadzącego z gry**, wytrenowany na Twoim komputerze z Twojej
 kopii płyty. Opisuje dokładnie tę drogę, którą przeszliśmy, razem z pułapkami, na które po drodze
@@ -52,8 +56,8 @@ same, a Ty tylko patrzysz na postęp.
    w RPCS3 *Utilities → Decrypt PS3 Binaries* → wskaż plik
    `…\PS3_GAME\USRDIR\EBOOT.BIN`. Obok pojawi się **`EBOOT.elf`**.
 
-> **Nie instaluj żadnej aktualizacji gry.** Toolkit wspomina o aktualizacji 01.02 – dotyczy ona
-> innej płyty (BCES00645). Na polskiej płycie 1.00 wszystko działa bez niej.
+> **Nie instaluj żadnej aktualizacji gry.** Na polskiej płycie w wersji 1.00 wszystko działa bez
+> niej – Studio pokaże *No game update needed*.
 
 ---
 
@@ -81,13 +85,12 @@ Wybierz folder **poza OneDrive** i z dużą ilością miejsca, np. `H:\Buzz`.
 **Z Gitem (zalecane):**
 ```
 cd H:\Buzz
-git clone -b polish-voice https://github.com/KotePlay/BuzzToolkitPL.git
+git clone https://github.com/KotePlay/BuzzToolkitPL.git
 cd BuzzToolkitPL
 ```
-`-b polish-voice` jest ważne – tylko na tej gałęzi są polskie zmiany.
 
-**Bez Gita:** otwórz https://github.com/KotePlay/BuzzToolkitPL/tree/polish-voice →
-**Code → Download ZIP** → wypakuj.
+**Bez Gita:** otwórz https://github.com/KotePlay/BuzzToolkitPL → **Code → Download ZIP** →
+wypakuj.
 
 ---
 
@@ -116,7 +119,8 @@ Jeśli instalator napisze, że potrzebuje Pythona 3.11 – wróć do kroku 3.
      ```
      (bez cudzysłowów) → **Read game keys**. Pole zniknie, a pojawi się zielone
      *Game keys read from your EBOOT*. To robisz tylko raz.
-   - Komunikaty o aktualizacji 01.02 i „custom running orders” dotyczą innej płyty – pomiń je.
+   - Niżej zobaczysz *No game update needed* i *Pack Game plays the game's own round order* – tak
+     ma być, na polskiej płycie nic więcej nie trzeba ustawiać.
 
 Studio możesz teraz zamknąć – do treningu nie jest potrzebne.
 
@@ -203,8 +207,8 @@ Pytanie maks. 93 znaki, odpowiedź maks. 30. **Sprawdź fakty** – AI potrafi s
 
 1. Uruchom **`Start Buzz Pack Studio.bat`**.
 2. Po lewej wpisz nazwę paczki → **Create**.
-3. **Krok 1 Pack:** ustaw **Language: Polish (POL)** – nowa paczka domyślnie jest angielska, łatwo
-   to przeoczyć. Sprawdź:
+3. **Krok 1 Pack:** sprawdź, czy **Language** to **Polish (POL)** (przy polskiej płycie nowa
+   paczka jest polska od razu) oraz:
    - *Plays on: Buzz!: Quiz World (Pl, Ru, El, Hr, Cs)*,
    - *Host reads the questions aloud* – włączone, z Twoim polskim głosem.
 4. **Krok 2 Questions:** przeciągnij plik `.txt` na pole *Drop quiz files here* → **Import**.
@@ -271,8 +275,14 @@ Same nagrania można odsłuchać w `voice_cache\clone_*.wav`.
 ## 11. Najczęstsze pytania
 
 **Czy muszę aktualizować grę?**
-Nie. Polska płyta w wersji 1.00 wystarcza do paczek, głosu i menu online. Toolkit nigdy sam nie
-instaluje aktualizacji.
+Nie. Polska płyta w wersji 1.00 wystarcza do paczek i głosu. Toolkit nigdy sam nie instaluje
+aktualizacji.
+
+**A gra online (MyBuzz)?**
+Na polskiej płycie aplikacja nie ustawia gry online – ta funkcja jest napisana pod płytę BCES00645
+z aktualizacją. Paczki działają offline i serwer nie jest do nich potrzebny. Łatkę 60 FPS można
+za to włączyć na każdej płycie: w RPCS3 *Manage → Game Patches* zaimportuj plik
+`rpcs3_patches\buzz_toolkit_patches.yml` i zaznacz *60 FPS*.
 
 **Czym jest Hugging Face, o którym piszą ostrzeżenia?**
 To serwis z modelami AI (jak GitHub dla modeli). Toolkit pobiera stamtąd automatycznie model
@@ -284,7 +294,8 @@ oknie PowerShella `$env:HF_HOME = "H:\hf_cache"`.
 Na polskiej płycie nie – ta funkcja wymaga płyty BCES00645 z aktualizacją. Gra układa rundy sama.
 
 **Jak zaktualizować toolkit?**
-W folderze toolkitu: `git pull`, potem uruchom Studio od nowa. Wytrenowany głos
+W folderze toolkitu: `git pull`, potem uruchom Studio od nowa. (Jeśli pobrałeś toolkit wcześniej z
+gałęzi `polish-voice`, przełącz się raz na główną: `git checkout main`, potem `git pull`.) Wytrenowany głos
 (`voice_models\buzz_host_POL`) i Twoje paczki (`content\projects`) zostają.
 
 **Czy mogę udostępniać paczki?**

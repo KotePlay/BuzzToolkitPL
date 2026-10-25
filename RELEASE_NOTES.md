@@ -1,3 +1,43 @@
+# Buzz Toolkit PL 0.1.4-pl.1
+
+**A fork of [Handylemons/BuzzToolkit](https://github.com/Handylemons/BuzzToolkit) 0.1.4 that adds
+Polish: packs read aloud by a trained Polish host, made and played on the Polish disc
+(`BCES00647`) as it is.** Everything below 0.1.4-pl.1 is the original author's release history.
+
+## Host voice in other languages
+* `voice_trainer.run --lang POL` (or ESP, PRT, DEU, FRA, ITA, NLD, RUS, GRC) trains on that
+  language's own question pack and commentary from the disc, on Chatterbox's multilingual model.
+  One work folder per language; the exported voice (`voice_models/buzz_host_<LANG>`) records its
+  language and base model, and packs in that language use it. A voice is refused on the wrong base
+  model.
+* Measured on the Polish host (12 held-out questions): speaker similarity 0.979 against 0.978 for
+  the real host's own clips, word errors 5.2% (untrained multilingual model: 0.971 / 10.9%).
+* Polish lines are normalised before speaking and before the speech check: numbers, dates, years,
+  centuries, decades, units and common abbreviations in words, in the form the context needs.
+* The speech check compares numbers per language and uses Whisper `medium` for languages other
+  than English (`small` threw away good Polish takes). `BUZZ_ASR_MODEL` overrides.
+
+## Training on smaller and older cards
+* fp32 on cards before compute capability 8.0 (GTX 10xx, RTX 20xx have no fast bfloat16) and
+  micro-batches with summed gradients on cards under 12 GB, so the optimiser sees the same batch.
+  A 12 GB RTX 30xx trains exactly as before. Tested on a GTX 1070 Ti (8 GB).
+* Steps 3 and 4 write their result under its final name only when they finish, so an interrupted
+  run is redone instead of being skipped with a half-trained model.
+
+## Buzz Pack Studio
+* **Packs made in the Studio get the host voice.** They carry only `"audio": true`, and the builder
+  looked for a voice only in a `"voice"` block, so every Studio pack was built silent.
+* New packs start in the disc's language (Polish when RPCS3 has only `BCES00647`).
+* On discs other than `BCES00645`, the update 01.02 warning, *Turn on custom running orders*, the
+  one-click online setup and *Publish to MyBuzz* are replaced by short notes or hidden: they only
+  exist for `BCES00645` with the update.
+* The game keys are saved when the pack key is found, even if the online-only server salt is not.
+* Polish host-intro lines in High Stakes.
+
+## Guides
+* `INSTRUKCJA_PL.md`: the whole process in Polish, step by step.
+* `examples/INSTRUKCJA_PYTANIA_DLA_AI.md`: instructions for an AI writing Polish question files.
+
 # Buzz Toolkit 0.1.4
 
 **Accents and non-Latin alphabets are no longer stripped out of packs.**

@@ -92,6 +92,13 @@ def number_conflicts(pid, pack):
     return pack_numbers.conflicts(pack, settings().get("rpcs3"), other_projects(pid))
 
 
+def default_language():
+    """Language of a new pack: the disc's own when RPCS3 has exactly one Buzz build (Polish for
+    BCES00647), otherwise English."""
+    found = games.installed_games(settings().get("rpcs3"))
+    return games.GAMES[found[0]]["default_language"] if len(found) == 1 else "GBR"
+
+
 def hook_installed():
     r = settings().get("rpcs3")
     if not r:
@@ -192,7 +199,7 @@ def act_new(a):
         raise ValueError("pack number %d is already used" % number)
     pid = content.slug(title, 24) + "_%d" % number
     pack = content.new_pack(title, number, a.get("category") or "Knowledge", a.get("description"))
-    pack["language"] = a.get("language", "GBR")
+    pack["language"] = a.get("language") or default_language()
     pack["audio"] = True
     pack["rounds"] = {"4p": PRESETS["Classic (4 rounds)"]}
     save(pid, pack)
