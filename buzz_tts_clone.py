@@ -43,7 +43,9 @@ def load(model_dir=None, device=None, lang=None):
                          % (model_dir, trained_base(model_dir), lang, want))
     if want == "multilingual":
         from chatterbox.mtl_tts import ChatterboxMultilingualTTS
-        model = ChatterboxMultilingualTTS.from_pretrained(device=torch.device(device))
+        # a plain "cpu"/"cuda" string: Chatterbox only maps CUDA-saved weights to the CPU when
+        # the device it is given compares equal to "cpu", which a torch.device does not
+        model = ChatterboxMultilingualTTS.from_pretrained(device=device)
         model.buzz_lang = lang
     else:
         model = ChatterboxTTS.from_pretrained(device=device)

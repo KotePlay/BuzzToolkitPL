@@ -298,6 +298,26 @@ W folderze toolkitu: `git pull`, potem uruchom Studio od nowa. (Jeśli pobrałe�
 gałęzi `polish-voice`, przełącz się raz na główną: `git checkout main`, potem `git pull`.) Wytrenowany głos
 (`voice_models\buzz_host_POL`) i Twoje paczki (`content\projects`) zostają.
 
+**Jak przenieść wszystko na inny komputer?**
+- **Samo granie:** skopiuj folder RPCS3 (zainstalowane paczki są w jego `dev_hdd0`) i folder gry.
+  Toolkit nie jest do tego potrzebny. Jeśli gra leży na nowym komputerze pod inną ścieżką, dodaj
+  ją w RPCS3 jeszcze raz (*File → Add Games*).
+- **Robienie paczek z głosem:** zainstaluj Pythona 3.11 (krok 3), skopiuj folder toolkitu **bez**
+  `tools\venv` i `tools\clone_venv` (te dwa działają tylko na komputerze, na którym powstały) i
+  uruchom `Install.bat` z odpowiedzią **Y**. Najważniejszy jest folder
+  `voice_models\buzz_host_POL` – to Twój wytrenowany głos, zrób jego kopię zapasową. Warto też
+  skopiować `voice_cache` (gotowe nagrania), a `buzz_trening_pl` jest potrzebny tylko do
+  ponownego treningu. W Studio ustaw jeszcze raz folder RPCS3.
+- **Karta graficzna:** z kartą NVIDIA głos generuje się szybko. Na komputerze z kartą AMD (albo
+  bez karty) działa na procesorze – wolniej, orientacyjnie kilkadziesiąt sekund na pytanie
+  (zależnie od procesora; nie mierzyliśmy). Trening głosu wymaga karty NVIDIA.
+- **Karta NVIDIA z małą pamięcią (4 GB i mniej):** jeśli Generate kończy się `CUDA out of memory`,
+  uruchom Studio na procesorze – w PowerShellu w folderze toolkitu:
+  ```
+  $env:CUDA_VISIBLE_DEVICES = "-1"
+  .\tools\venv\Scripts\python.exe -m buzz_engine studio
+  ```
+
 **Czy mogę udostępniać paczki?**
 Tak, ale tylko z pytaniami i obrazkami, do których masz prawa. Paczka zawiera wygenerowane nagrania
 głosu prowadzącego – udostępniaj ją znajomym prywatnie, nie publikuj masowo. Nie udostępniaj plików

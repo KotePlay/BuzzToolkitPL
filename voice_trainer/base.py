@@ -53,12 +53,11 @@ def get_lang(work):
 
 def load(iso, device="cuda"):
     """The base model a voice in this language is trained on."""
-    import torch
     if iso in ENGLISH:
         from chatterbox.tts import ChatterboxTTS
         return ChatterboxTTS.from_pretrained(device=device)
     from chatterbox.mtl_tts import ChatterboxMultilingualTTS
-    return ChatterboxMultilingualTTS.from_pretrained(device=torch.device(device))
+    return ChatterboxMultilingualTTS.from_pretrained(device=device)       # a string: see buzz_tts_clone.load
 
 
 def text_tokens(model, text, iso):
