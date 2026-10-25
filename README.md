@@ -1,5 +1,8 @@
 # Buzz Toolkit 0.1.1
 
+> 🇵🇱 **Po polsku:** pełna instrukcja krok po kroku – od płyty do własnej paczki z polskim
+> prowadzącym – jest w [INSTRUKCJA_PL.md](INSTRUKCJA_PL.md).
+
 Make your own quiz packs for **Buzz! Quiz World** (PS3, BCES00645) and host your own Buzz! online
 server, for playing on RPCS3 or a modded PS3.
 
